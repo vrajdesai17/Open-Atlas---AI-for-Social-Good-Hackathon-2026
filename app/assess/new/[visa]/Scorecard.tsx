@@ -12,6 +12,12 @@ const VERDICT_STYLE: Record<
   gap: { pill: "bg-panel text-faint", label: "Gap", dot: "bg-faint" },
 };
 
+const MERITS_STYLE: Record<PanelResult["finalMerits"], string> = {
+  strong: "text-green",
+  borderline: "text-amber",
+  weak: "text-faint",
+};
+
 export function Scorecard({ result }: { result: PanelResult }) {
   return (
     <div>
@@ -38,6 +44,14 @@ export function Scorecard({ result }: { result: PanelResult }) {
           </p>
           <p className="text-sm text-muted">{result.summary}</p>
         </div>
+      </div>
+
+      <div className="mt-3 text-sm text-muted">
+        Step 2 — Final Merits: your record reads as{" "}
+        <span className={`font-semibold ${MERITS_STYLE[result.finalMerits]}`}>
+          {result.finalMerits}
+        </span>{" "}
+        beyond the raw count
       </div>
 
       <p className="mt-6 text-xs font-medium uppercase tracking-wide text-faint">

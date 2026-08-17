@@ -5,8 +5,11 @@ import type { GithubData } from "@/lib/sources/github";
 import type { OpenAlexData } from "@/lib/sources/openalex";
 import type { EvidenceItem } from "@/lib/agents/extractor";
 import type { PanelResult } from "@/lib/agents/panel";
+import type { PlanResult } from "@/lib/agents/planner";
+import { Domain, getDomainConfig, getValidDomainsForVisa, MAX_FIELD_CHARS } from "@/lib/domains";
 import { Scorecard } from "./Scorecard";
 import { ReportPrint } from "./ReportPrint";
+import { RoadmapView } from "./RoadmapView";
 
 type SourceErr = { error: string };
 type Bundle = {
@@ -34,6 +37,9 @@ export function AssessmentForm({
 }) {
   const labelOf = (id: string) =>
     criteria.find((c) => c.id === id)?.label ?? id;
+  const validDomains = getValidDomainsForVisa(visaId);
+  const [domain, setDomain] = useState<Domain>(validDomains[0]);
+  const [extraFieldValues, setExtraFieldValues] = useState<Record<string, string>>({});
   const [github, setGithub] = useState("");
   const [publications, setPublications] = useState("");
   const [field, setField] = useState("");
@@ -58,18 +64,31 @@ export function AssessmentForm({
         setSalary(p.salary ?? "");
         if (p.press?.length) setPress(p.press);
         if (p.resumeText) setProfileResumeText(p.resumeText);
+
+        const currentConfig = getDomainConfig(domain);
+        const newExtraValues: Record<string, string> = {};
+        for (const f of currentConfig.extraFields) {
+          const val = p[f.id as keyof typeof p];
+          if (typeof val === "string" && val) {
+            newExtraValues[f.id] = val;
+          }
+        }
+        setExtraFieldValues(newExtraValues);
+
         if (
           p.github ||
           p.publications ||
           p.field ||
           p.salary ||
           p.resumeText ||
-          p.press?.length
+          p.press?.length ||
+          Object.keys(newExtraValues).length > 0
         ) {
           setPrefilled(true);
         }
       })
       .catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
   const [result, setResult] = useState<Bundle | null>(null);
   const [extracting, setExtracting] = useState(false);
@@ -81,6 +100,12 @@ export function AssessmentForm({
   const [drafting, setDrafting] = useState(false);
   const [letter, setLetter] = useState<string | null>(null);
   const [letterError, setLetterError] = useState<string | null>(null);
+  const [plan, setPlan] = useState<PlanResult | null>(null);
+  const [planning, setPlanning] = useState(false);
+  const [planError, setPlanError] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [saveError, setSaveError] = useState<string | null>(null);
 
   async function runDraftLetter() {
     if (!panel || !evidence) return;
@@ -90,7 +115,7 @@ export function AssessmentForm({
       const res = await fetch("/api/letter", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ evidence, panel, visaId }),
+        body: JSON.stringify({ evidence, panel, visaId, domain }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
@@ -110,7 +135,7 @@ export function AssessmentForm({
       const res = await fetch("/api/panel", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ evidence, visaId }),
+        body: JSON.stringify({ evidence, visaId, domain, field }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
@@ -122,10 +147,58 @@ export function AssessmentForm({
     }
   }
 
+  async function runGeneratePlan() {
+    if (!panel || !evidence) return;
+    setPlanError(null);
+    setPlanning(true);
+    try {
+      const res = await fetch("/api/plan", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evidence, panel, visaId, domain }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setPlan(data);
+    } catch (err) {
+      setPlanError(err instanceof Error ? err.message : "Planning failed");
+    } finally {
+      setPlanning(false);
+    }
+  }
+
+  async function runSaveAssessment() {
+    if (!panel) return;
+    setSaveError(null);
+    setSaving(true);
+    try {
+      const res = await fetch("/api/assessments", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          visaId,
+          domain,
+          result: panel,
+          tasks: plan ? plan.phases.flatMap((p) => p.tasks) : [],
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setSaved(true);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Save failed");
+    } finally {
+      setSaving(false);
+    }
+  }
+
   function startOver() {
     setPanel(null);
     setEvidence(null);
     setResult(null);
+    setLetter(null);
+    setPlan(null);
+    setSaved(false);
   }
 
   async function runExtract() {
@@ -181,6 +254,10 @@ export function AssessmentForm({
       if (resumeFile) fd.set("resume", resumeFile);
       else if (profileResumeText) fd.set("resumeText", profileResumeText);
 
+      Object.entries(extraFieldValues).forEach(([k, v]) => {
+        if (v.trim()) fd.set(k, v.trim());
+      });
+
       const res = await fetch("/api/fetch-sources", { method: "POST", body: fd });
       if (!res.ok) throw new Error(`Request failed (${res.status})`);
       setResult(await res.json());
@@ -198,7 +275,7 @@ export function AssessmentForm({
           Evidence gathered
         </div>
         <h2 className="mt-4 text-xl font-semibold">
-          Here's what we pulled for {visaName}
+          Here&apos;s what we pulled for {visaName}
         </h2>
         <p className="mt-1 text-sm text-muted">
           Real data from your sources — this is what the agent panel will reason
@@ -367,6 +444,14 @@ export function AssessmentForm({
               <p className="mt-4 text-sm text-red-600">{letterError}</p>
             )}
 
+            {plan && <RoadmapView plan={plan} />}
+            {planError && (
+              <p className="mt-4 text-sm text-red-600">{planError}</p>
+            )}
+            {saveError && (
+              <p className="mt-4 text-sm text-red-600">{saveError}</p>
+            )}
+
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {!letter && (
                 <button
@@ -375,6 +460,32 @@ export function AssessmentForm({
                   className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent/90 disabled:opacity-60"
                 >
                   {drafting ? "Drafting…" : "Draft petition letter"}
+                </button>
+              )}
+              {!plan && (
+                <button
+                  onClick={runGeneratePlan}
+                  disabled={planning}
+                  className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent/90 disabled:opacity-60"
+                >
+                  {planning ? "Planning…" : "Generate action plan"}
+                </button>
+              )}
+              {!saved && (
+                <button
+                  onClick={runSaveAssessment}
+                  disabled={saving}
+                  className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent/90 disabled:opacity-60"
+                >
+                  {saving ? "Saving…" : "Save to my assessments"}
+                </button>
+              )}
+              {saved && (
+                <button
+                  disabled
+                  className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white opacity-60 cursor-not-allowed"
+                >
+                  Saved
                 </button>
               )}
               <button
@@ -418,20 +529,73 @@ export function AssessmentForm({
       )}
 
       <div className="mt-5 space-y-5">
-        <TextField
-          label="GitHub"
-          hint="We read public repos, stars, and adoption."
-          placeholder="github.com/yourhandle"
-          value={github}
-          onChange={setGithub}
-        />
-        <TextField
-          label="Publications"
-          hint="OpenAlex profile URL, or just your name — we pull papers and citations."
-          placeholder="openalex.org/A… or your full name"
-          value={publications}
-          onChange={setPublications}
-        />
+        {validDomains.length > 1 && (
+          <div>
+            <label className="text-sm font-medium">Domain</label>
+            <div className="mt-2 flex flex-wrap gap-2">
+              {validDomains.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  onClick={() => {
+                    setDomain(d);
+                    setExtraFieldValues({});
+                  }}
+                  className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                    domain === d
+                      ? "border-accent bg-accent text-white"
+                      : "border-line bg-card hover:border-ink/30"
+                  }`}
+                >
+                  {getDomainConfig(d).label}
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {getDomainConfig(domain).extraFields.map((fieldSpec) => (
+          fieldSpec.type === "textarea" ? (
+            <div key={fieldSpec.id}>
+              <label className="text-sm font-medium">{fieldSpec.label}</label>
+              {fieldSpec.hint && <p className="mt-0.5 text-xs text-muted">{fieldSpec.hint}</p>}
+              <textarea
+                maxLength={fieldSpec.id === "media" ? undefined : MAX_FIELD_CHARS}
+                value={extraFieldValues[fieldSpec.id] || ""}
+                onChange={(e) => setExtraFieldValues(prev => ({ ...prev, [fieldSpec.id]: e.target.value }))}
+                className="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent min-h-[80px]"
+              />
+            </div>
+          ) : (
+            <TextField
+              key={fieldSpec.id}
+              label={fieldSpec.label}
+              hint={fieldSpec.hint}
+              placeholder=""
+              value={extraFieldValues[fieldSpec.id] || ""}
+              onChange={(v) => setExtraFieldValues(prev => ({ ...prev, [fieldSpec.id]: v }))}
+            />
+          )
+        ))}
+
+        {getDomainConfig(domain).showGithub && (
+          <TextField
+            label="GitHub"
+            hint="We read public repos, stars, and adoption."
+            placeholder="github.com/yourhandle"
+            value={github}
+            onChange={setGithub}
+          />
+        )}
+        {getDomainConfig(domain).showPublications && (
+          <TextField
+            label="Publications"
+            hint="OpenAlex profile URL, or just your name — we pull papers and citations."
+            placeholder="openalex.org/A… or your full name"
+            value={publications}
+            onChange={setPublications}
+          />
+        )}
 
         <div>
           <label className="text-sm font-medium">Press / media links</label>

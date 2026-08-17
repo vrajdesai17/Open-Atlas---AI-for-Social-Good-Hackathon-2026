@@ -3,7 +3,8 @@ import { auth } from "@/auth";
 import { fetchGithub } from "@/lib/sources/github";
 import { fetchOpenAlex } from "@/lib/sources/openalex";
 import { extractResumeText } from "@/lib/sources/resume";
-
+import { extractMediaLinks } from "@/lib/sources/media";
+import { MAX_FIELD_CHARS } from "@/lib/domains";
 export const runtime = "nodejs";
 
 function errMessage(reason: unknown): string {
@@ -27,25 +28,35 @@ export async function POST(req: NextRequest) {
     .map((s) => s.trim())
     .filter(Boolean);
   const resume = form.get("resume");
-  const resumeText = String(form.get("resumeText") ?? "").trim();
+  const resumeText = String(form.get("resumeText") ?? "").trim().slice(0, MAX_FIELD_CHARS);
+  const media = String(form.get("media") ?? "").trim();
+  const businessMetrics = String(form.get("businessMetrics") ?? "").trim().slice(0, MAX_FIELD_CHARS);
+  const athleticsRecord = String(form.get("athleticsRecord") ?? "").trim().slice(0, MAX_FIELD_CHARS);
+  const educationMetrics = String(form.get("educationMetrics") ?? "").trim().slice(0, MAX_FIELD_CHARS);
 
   const resumeTask: Promise<string | null> =
     resume instanceof File
-      ? resume.arrayBuffer().then((b) => extractResumeText(new Uint8Array(b)))
+      ? resume.arrayBuffer()
+          .then((b) => extractResumeText(new Uint8Array(b)))
+          .then((t) => (t ? t.slice(0, MAX_FIELD_CHARS) : null))
       : resumeText
         ? Promise.resolve(resumeText)
         : Promise.resolve(null);
 
-  const [gh, oa, rz] = await Promise.allSettled([
+  const [gh, oa, rz, md] = await Promise.allSettled([
     github ? fetchGithub(github) : Promise.resolve(null),
     publications ? fetchOpenAlex(publications) : Promise.resolve(null),
     resumeTask,
+    media ? extractMediaLinks(media) : Promise.resolve(null),
   ]);
 
   return NextResponse.json({
     field,
     salary,
     press,
+    businessMetrics: businessMetrics ? { text: businessMetrics } : null,
+    athleticsRecord: athleticsRecord ? { text: athleticsRecord } : null,
+    educationMetrics: educationMetrics ? { text: educationMetrics } : null,
     github:
       gh.status === "fulfilled" ? gh.value : { error: errMessage(gh.reason) },
     openalex:
@@ -56,5 +67,7 @@ export async function POST(req: NextRequest) {
           ? { chars: rz.value.length, text: rz.value }
           : null
         : { error: errMessage(rz.reason) },
+    media:
+      md.status === "fulfilled" ? md.value : { error: errMessage(md.reason) },
   });
 }

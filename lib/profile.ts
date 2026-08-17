@@ -7,13 +7,18 @@ export type Profile = {
   field: string;
   salary: string;
   resumeText: string;
+  domain: string;
+  media: string;
+  businessMetrics: string;
+  athleticsRecord: string;
+  educationMetrics: string;
 };
 
 export async function getProfile(email: string): Promise<Profile | null> {
   await ensureSchema();
   const s = db();
   const rows = await s`
-    select github, publications, press, field, salary, resume_text
+    select github, publications, press, field, salary, resume_text, domain, media, business_metrics as "businessMetrics", athletics_record as "athleticsRecord", education_metrics as "educationMetrics"
     from profiles where user_email = ${email}`;
   if (!rows.length) return null;
   const r = rows[0];
@@ -24,6 +29,11 @@ export async function getProfile(email: string): Promise<Profile | null> {
     field: r.field ?? "",
     salary: r.salary ?? "",
     resumeText: r.resume_text ?? "",
+    domain: r.domain ?? "",
+    media: r.media ?? "",
+    businessMetrics: r.businessMetrics ?? "",
+    athleticsRecord: r.athleticsRecord ?? "",
+    educationMetrics: r.educationMetrics ?? "",
   };
 }
 
@@ -34,8 +44,8 @@ export async function upsertProfile(
   await ensureSchema();
   const s = db();
   await s`
-    insert into profiles (user_email, github, publications, press, field, salary, resume_text, updated_at)
-    values (${email}, ${p.github}, ${p.publications}, ${s.json(p.press)}, ${p.field}, ${p.salary}, ${p.resumeText}, now())
+    insert into profiles (user_email, github, publications, press, field, salary, resume_text, domain, media, business_metrics, athletics_record, education_metrics, updated_at)
+    values (${email}, ${p.github}, ${p.publications}, ${s.json(p.press)}, ${p.field}, ${p.salary}, ${p.resumeText}, ${p.domain}, ${p.media}, ${p.businessMetrics}, ${p.athleticsRecord}, ${p.educationMetrics}, now())
     on conflict (user_email) do update set
       github = excluded.github,
       publications = excluded.publications,
@@ -43,5 +53,10 @@ export async function upsertProfile(
       field = excluded.field,
       salary = excluded.salary,
       resume_text = excluded.resume_text,
+      domain = excluded.domain,
+      media = excluded.media,
+      business_metrics = excluded.business_metrics,
+      athletics_record = excluded.athletics_record,
+      education_metrics = excluded.education_metrics,
       updated_at = now()`;
 }

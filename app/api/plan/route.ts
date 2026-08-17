@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { auth } from "@/auth";
 import { getVisa } from "@/lib/visas";
-import { draftLetter } from "@/lib/agents/letter";
+import { generatePlan } from "@/lib/agents/planner";
 import type { Domain } from "@/lib/domains";
 
 export const runtime = "nodejs";
@@ -26,13 +26,21 @@ export async function POST(req: NextRequest) {
   if (!visa) {
     return NextResponse.json({ error: "unknown visa" }, { status: 400 });
   }
-  const resolvedDomain: Domain | undefined = VALID_DOMAINS.has(domain)
-    ? domain
-    : undefined;
+  
+  if (!panel) {
+    return NextResponse.json({ error: "missing panel result" }, { status: 400 });
+  }
+
+  const resolvedDomain: Domain = VALID_DOMAINS.has(domain) ? domain : "stem";
 
   try {
-    const letter = await draftLetter(visa, panel, evidence ?? [], resolvedDomain);
-    return NextResponse.json({ letter });
+    const result = await generatePlan(
+      evidence ?? [],
+      panel,
+      visa,
+      resolvedDomain
+    );
+    return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
     return NextResponse.json({ error: message }, { status: 500 });

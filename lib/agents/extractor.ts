@@ -16,9 +16,18 @@ function bundleForModel(bundle: Record<string, any>) {
   const gh = clean(bundle.github);
   const oa = clean(bundle.openalex);
   const rz = clean(bundle.resume);
+  const md = clean(bundle.media);
+  const bm = clean(bundle.businessMetrics);
+  const ar = clean(bundle.athleticsRecord);
+  const em = clean(bundle.educationMetrics);
+
   if (gh) out.github = gh;
   if (oa) out.openalex = oa;
   if (rz?.text) out.resumeText = rz.text;
+  if (md) out.media = md;
+  if (bm) out.businessMetrics = bm;
+  if (ar) out.athleticsRecord = ar;
+  if (em) out.educationMetrics = em;
   if (bundle.press?.length) out.pressLinks = bundle.press;
   if (bundle.field) out.field = bundle.field;
   if (bundle.salary) out.salary = bundle.salary;

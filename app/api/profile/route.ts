@@ -33,6 +33,11 @@ export async function POST(req: NextRequest) {
     const publications = String(form.get("publications") ?? "").trim();
     const field = String(form.get("field") ?? "").trim();
     const salary = String(form.get("salary") ?? "").trim();
+    const domain = String(form.get("domain") ?? "").trim();
+    const media = String(form.get("media") ?? "").trim();
+    const businessMetrics = String(form.get("businessMetrics") ?? "").trim();
+    const athleticsRecord = String(form.get("athleticsRecord") ?? "").trim();
+    const educationMetrics = String(form.get("educationMetrics") ?? "").trim();
     const press = form
       .getAll("press")
       .map(String)
@@ -57,6 +62,11 @@ export async function POST(req: NextRequest) {
       field,
       salary,
       resumeText,
+      domain,
+      media,
+      businessMetrics,
+      athleticsRecord,
+      educationMetrics,
     });
     return NextResponse.json({ ok: true });
   } catch (err) {

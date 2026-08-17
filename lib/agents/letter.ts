@@ -2,11 +2,13 @@ import { generateJSON } from "./llm";
 import type { Visa } from "@/lib/visas";
 import type { PanelResult } from "./panel";
 import type { EvidenceItem } from "./extractor";
+import type { Domain } from "@/lib/domains";
 
 export async function draftLetter(
   visa: Visa,
   panel: PanelResult,
   evidence: EvidenceItem[],
+  domain?: Domain,
 ): Promise<string> {
   const met = panel.criteria.filter((c) => c.verdict === "met");
   const partial = panel.criteria.filter((c) => c.verdict === "partial");
@@ -22,8 +24,8 @@ export async function draftLetter(
     .join("\n");
 
   const opening = eligible
-    ? `A brief opening stating the beneficiary qualifies as a person of extraordinary ability under the ${visa.name} classification, meeting ${panel.metCount} of the regulatory criteria (the standard requires at least ${visa.threshold}).`
-    : `A brief, HONEST opening. Do NOT claim the beneficiary already qualifies or "meets the regulatory criteria" — that would be false. State plainly that, on the current record, the beneficiary meets ${panel.metCount} of the required ${visa.threshold} criteria for the ${visa.name} classification, and that this draft documents current strengths while the remaining criteria are developed.`;
+    ? `A brief opening stating the beneficiary qualifies as a person of extraordinary ability under the ${visa.name} classification${domain ? ` in the field of ${domain}` : ""}, meeting ${panel.metCount} of the regulatory criteria (the standard requires at least ${visa.threshold}).`
+    : `A brief, HONEST opening. Do NOT claim the beneficiary already qualifies or "meets the regulatory criteria" — that would be false. State plainly that, on the current record, the beneficiary meets ${panel.metCount} of the required ${visa.threshold} criteria for the ${visa.name} classification${domain ? ` in the field of ${domain}` : ""}, and that this draft documents current strengths while the remaining criteria are developed.`;
 
   const conclusion = eligible
     ? "A one-sentence conclusion respectfully requesting approval."
