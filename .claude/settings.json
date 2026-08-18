@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); file=$(echo \"$input\" | jq -r '.tool_input.file_path // empty'); if echo \"$file\" | grep -qE '(^|/)\\.env(\\..*)?$'; then echo 'Blocked: .env* files hold secrets (GROQ_API_KEY, AUTH_SECRET, DATABASE_URL, OAuth secrets) — edit manually, not via Claude Code.' >&2; exit 2; fi"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "input=$(cat); file=$(echo \"$input\" | jq -r '.tool_input.file_path // empty'); case \"$file\" in *.ts|*.tsx) npx eslint --fix \"$file\" 2>&1; npx tsc --noEmit -p tsconfig.json 2>&1 | head -60 ;; esac"
+          }
+        ]
+      }
+    ]
+  }
+}

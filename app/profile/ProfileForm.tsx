@@ -2,10 +2,13 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { Domain, getDomainConfig, MAX_FIELD_CHARS } from "@/lib/domains";
 
 export function ProfileForm({ welcome = false }: { welcome?: boolean }) {
   const router = useRouter();
   const [loaded, setLoaded] = useState(false);
+  const [domain, setDomain] = useState<Domain>("stem");
+  const [extraFieldValues, setExtraFieldValues] = useState<Record<string, string>>({});
   const [github, setGithub] = useState("");
   const [publications, setPublications] = useState("");
   const [field, setField] = useState("");
@@ -29,6 +32,13 @@ export function ProfileForm({ welcome = false }: { welcome?: boolean }) {
           setSalary(p.salary ?? "");
           setPress(p.press?.length ? p.press : [""]);
           setSavedResumeChars(p.resumeText?.length ?? 0);
+          setDomain((p.domain as Domain) || "stem");
+          setExtraFieldValues({
+            media: p.media ?? "",
+            businessMetrics: p.businessMetrics ?? "",
+            athleticsRecord: p.athleticsRecord ?? "",
+            educationMetrics: p.educationMetrics ?? "",
+          });
         }
       })
       .catch((e) => setError(e instanceof Error ? e.message : "Load failed"))
@@ -47,10 +57,14 @@ export function ProfileForm({ welcome = false }: { welcome?: boolean }) {
     setSaving(true);
     try {
       const fd = new FormData();
+      fd.set("domain", domain);
       fd.set("github", github.trim());
       fd.set("publications", publications.trim());
       fd.set("field", field.trim());
       fd.set("salary", salary.trim());
+      Object.entries(extraFieldValues).forEach(([k, v]) => {
+        if (v.trim()) fd.set(k, v.trim());
+      });
       press
         .map((p) => p.trim())
         .filter(Boolean)
@@ -91,13 +105,63 @@ export function ProfileForm({ welcome = false }: { welcome?: boolean }) {
   return (
     <div className="rounded-2xl border border-line bg-card p-6">
       <div className="space-y-5">
-        <Field label="GitHub" value={github} onChange={setGithub} placeholder="github.com/yourhandle" />
-        <Field
-          label="Publications"
-          value={publications}
-          onChange={setPublications}
-          placeholder="openalex.org/A… or your full name"
-        />
+        <div>
+          <label className="text-sm font-medium">Domain</label>
+          <div className="mt-2 flex flex-wrap gap-2">
+            {(["stem", "arts", "business", "athletics", "education"] as Domain[]).map((d) => (
+              <button
+                key={d}
+                type="button"
+                onClick={() => {
+                  setDomain(d);
+                  setExtraFieldValues({});
+                }}
+                className={`rounded-lg border px-4 py-2 text-sm font-medium transition ${
+                  domain === d
+                    ? "border-accent bg-accent text-white"
+                    : "border-line bg-card hover:border-ink/30"
+                }`}
+              >
+                {getDomainConfig(d).label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {getDomainConfig(domain).extraFields.map((fieldSpec) => (
+          fieldSpec.type === "textarea" ? (
+            <div key={fieldSpec.id}>
+              <label className="text-sm font-medium">{fieldSpec.label}</label>
+              {fieldSpec.hint && <p className="mt-0.5 text-xs text-muted">{fieldSpec.hint}</p>}
+              <textarea
+                maxLength={fieldSpec.id === "media" ? undefined : MAX_FIELD_CHARS}
+                value={extraFieldValues[fieldSpec.id] || ""}
+                onChange={(e) => setExtraFieldValues(prev => ({ ...prev, [fieldSpec.id]: e.target.value }))}
+                className="mt-2 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm outline-none focus:border-accent min-h-[80px]"
+              />
+            </div>
+          ) : (
+            <Field
+              key={fieldSpec.id}
+              label={fieldSpec.label}
+              placeholder=""
+              value={extraFieldValues[fieldSpec.id] || ""}
+              onChange={(v) => setExtraFieldValues(prev => ({ ...prev, [fieldSpec.id]: v }))}
+            />
+          )
+        ))}
+
+        {getDomainConfig(domain).showGithub && (
+          <Field label="GitHub" value={github} onChange={setGithub} placeholder="github.com/yourhandle" />
+        )}
+        {getDomainConfig(domain).showPublications && (
+          <Field
+            label="Publications"
+            value={publications}
+            onChange={setPublications}
+            placeholder="openalex.org/A… or your full name"
+          />
+        )}
 
         <div>
           <label className="text-sm font-medium">Press / media links</label>

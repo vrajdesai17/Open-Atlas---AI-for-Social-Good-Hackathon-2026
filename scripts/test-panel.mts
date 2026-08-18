@@ -13,7 +13,7 @@ const evidence: EvidenceItem[] = [
   { title: "Open-source project", detail: "Published an npm CLI for semantic code diff analysis (a few stars).", source: "resume", relatedCriteria: ["original"] },
 ];
 
-const result = await runPanel(evidence, visa);
+const result = await runPanel(evidence, visa, "stem");
 console.log("VERDICT:", result.summary, `(eligible=${result.eligible})`);
 for (const c of result.criteria) {
   console.log(`  ${c.verdict.toUpperCase().padEnd(8)} ${c.confidence.padEnd(7)} ${c.label}`);

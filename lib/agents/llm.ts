@@ -2,7 +2,9 @@
 // touches the provider directly — swapping models/providers is a one-file change.
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
-export const MODEL = process.env.GROQ_MODEL ?? "llama-3.3-70b-versatile";
+// llama-3.3-70b-versatile was retired from Groq (404 model_not_found as of
+// this check) — openai/gpt-oss-120b confirmed live and JSON-mode compatible.
+export const MODEL = process.env.GROQ_MODEL ?? "openai/gpt-oss-120b";
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
