@@ -13,7 +13,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "unauthorized" }, { status: 401 });
   }
 
-  const { visaId, domain, result, tasks } = await req.json();
+  const { visaId, domain, result, tasks, evidence } = await req.json();
 
   if (!result || !Array.isArray(result.criteria)) {
     return NextResponse.json({ error: "missing or invalid criteria" }, { status: 400 });
@@ -36,7 +36,8 @@ export async function POST(req: NextRequest) {
       userEmail: email,
       visaId,
       domain,
-      result: secureResult
+      result: secureResult,
+      evidence: evidence || []
     });
 
     if (tasks && Array.isArray(tasks) && tasks.length > 0) {

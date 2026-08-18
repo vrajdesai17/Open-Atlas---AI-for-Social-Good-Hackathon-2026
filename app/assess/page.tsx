@@ -81,7 +81,7 @@ export default async function Assess() {
                 {assessments.map((a) => {
                   const visa = getVisa(a.visaId);
                   return (
-                    <div key={a.id} className="rounded-xl border border-line bg-card p-5">
+                    <Link href={`/assess/${a.id}`} key={a.id} className="block rounded-xl border border-line bg-card p-5 transition hover:border-accent/50 hover:bg-accent/5">
                       <div className="flex items-center gap-3">
                         <span className="font-semibold">{visa?.name ?? a.visaId}</span>
                         <span className="rounded-full bg-accent/10 px-2 py-0.5 text-xs font-medium text-accent capitalize">
@@ -91,7 +91,7 @@ export default async function Assess() {
                       <p className="mt-1 text-sm text-muted">
                         {new Date(a.createdAt).toLocaleDateString()}
                       </p>
-                    </div>
+                    </Link>
                   );
                 })}
               </div>

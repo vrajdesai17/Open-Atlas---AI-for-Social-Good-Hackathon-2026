@@ -179,6 +179,7 @@ export function AssessmentForm({
           visaId,
           domain,
           result: panel,
+          evidence,
           tasks: plan ? plan.phases.flatMap((p) => p.tasks) : [],
         }),
       });
