@@ -103,6 +103,8 @@ export function AssessmentForm({
   const [plan, setPlan] = useState<PlanResult | null>(null);
   const [planning, setPlanning] = useState(false);
   const [planError, setPlanError] = useState<string | null>(null);
+  const [deepDiving, setDeepDiving] = useState(false);
+  const [deepDiveError, setDeepDiveError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
@@ -164,6 +166,26 @@ export function AssessmentForm({
       setPlanError(err instanceof Error ? err.message : "Planning failed");
     } finally {
       setPlanning(false);
+    }
+  }
+
+  async function runDeepDive() {
+    if (!panel || !evidence) return;
+    setDeepDiveError(null);
+    setDeepDiving(true);
+    try {
+      const res = await fetch("/api/panel/deep-dive", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ evidence, criteria: panel.criteria, visaId, domain }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? `Request failed (${res.status})`);
+      setPanel(data);
+    } catch (err) {
+      setDeepDiveError(err instanceof Error ? err.message : "Deep dive failed");
+    } finally {
+      setDeepDiving(false);
     }
   }
 
@@ -452,6 +474,9 @@ export function AssessmentForm({
             {saveError && (
               <p className="mt-4 text-sm text-red-600">{saveError}</p>
             )}
+            {deepDiveError && (
+              <p className="mt-4 text-sm text-red-600">{deepDiveError}</p>
+            )}
 
             <div className="mt-6 flex flex-wrap items-center gap-3">
               {!letter && (
@@ -470,6 +495,15 @@ export function AssessmentForm({
                   className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent/90 disabled:opacity-60"
                 >
                   {planning ? "Planning…" : "Generate action plan"}
+                </button>
+              )}
+              {panel.criteria.some((c) => c.verdict === "partial" || c.confidence === "low") && (
+                <button
+                  onClick={runDeepDive}
+                  disabled={deepDiving}
+                  className="rounded-lg bg-accent px-5 py-2.5 font-medium text-white transition hover:bg-accent/90 disabled:opacity-60"
+                >
+                  {deepDiving ? "Deep-diving (multiple calls)…" : "Deep-dive borderline criteria"}
                 </button>
               )}
               {!saved && (

@@ -3,8 +3,9 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { AppHeader } from "@/components/AppHeader";
 import { getProfile } from "@/lib/profile";
-import { listUserAssessments, listUserIncompleteTasks, type DbAssessment, type DbTask } from "@/lib/db";
+import { listUserAssessments, listUserIncompleteTasks, getUserRelevantDomains, getSeenPolicyItemIds, type DbAssessment, type DbTask } from "@/lib/db";
 import { getVisa } from "@/lib/visas";
+import { getPolicyWatch, isPolicyItemRelevant } from "@/lib/policy/watch";
 import { TaskList } from "./TaskList";
 
 export default async function Assess() {
@@ -27,11 +28,25 @@ export default async function Assess() {
 
   let assessments: DbAssessment[] = [];
   let tasks: DbTask[] = [];
+  let newPolicyUpdatesCount = 0;
 
   if (user?.email) {
     try {
       assessments = await listUserAssessments(user.email);
       tasks = await listUserIncompleteTasks(user.email);
+      
+      const [items, relevant, seenIds] = await Promise.all([
+        getPolicyWatch(),
+        getUserRelevantDomains(user.email),
+        getSeenPolicyItemIds(user.email)
+      ]);
+      
+      const domain = relevant.domain;
+      const visaIds = relevant.visaIds;
+
+      newPolicyUpdatesCount = items.filter(
+        (item) => isPolicyItemRelevant(item, domain, visaIds) && !seenIds.has(item.docNumber),
+      ).length;
     } catch (err) {
       console.error(err);
     }
@@ -45,9 +60,19 @@ export default async function Assess() {
         <p className="text-sm font-medium text-accent">
           Signed in{user?.name ? ` as ${user.name}` : ""}
         </p>
-        <h1 className="mt-1 text-3xl font-semibold tracking-tight">
-          Your assessments
-        </h1>
+        <div className="flex flex-col items-start md:flex-row md:items-center justify-between gap-4">
+          <h1 className="mt-1 text-3xl font-semibold tracking-tight">
+            Your assessments
+          </h1>
+          {newPolicyUpdatesCount > 0 && (
+            <Link 
+              href="/policy-watch" 
+              className="mt-1 inline-flex items-center rounded-full bg-accent/10 px-3 py-1 text-sm font-medium text-accent hover:bg-accent/20 transition-colors"
+            >
+              {newPolicyUpdatesCount} new policy update{newPolicyUpdatesCount === 1 ? '' : 's'} relevant to you ↗
+            </Link>
+          )}
+        </div>
         <p className="mt-2 max-w-xl text-muted">
           Start a new eligibility assessment for an achievement-based visa. Your
           results will be saved here.

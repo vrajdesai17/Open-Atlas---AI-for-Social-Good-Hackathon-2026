@@ -36,6 +36,7 @@ export function ensureSchema(): Promise<void> {
     await s`CREATE TABLE IF NOT EXISTS assessments (id TEXT PRIMARY KEY, user_email TEXT NOT NULL, visa_id TEXT NOT NULL, domain TEXT NOT NULL, result JSONB NOT NULL, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())`;
     await s`ALTER TABLE assessments ADD COLUMN IF NOT EXISTS evidence JSONB`;
     await s`CREATE TABLE IF NOT EXISTS user_tasks (id TEXT PRIMARY KEY, user_email TEXT NOT NULL, assessment_id TEXT NOT NULL, criterion_id TEXT NOT NULL, title TEXT NOT NULL, description TEXT NOT NULL, timeframe TEXT NOT NULL, completed BOOLEAN DEFAULT FALSE, outreach_template TEXT, created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW())`;
+    await s`CREATE TABLE IF NOT EXISTS seen_policy_items (user_email TEXT NOT NULL, item_id TEXT NOT NULL, seen_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(), PRIMARY KEY (user_email, item_id))`;
   })();
   return schemaReady;
 }
@@ -163,4 +164,29 @@ export async function insertTask(task: Omit<DbTask, 'id' | 'createdAt' | 'comple
   const id = crypto.randomUUID();
   await s`insert into user_tasks (id, user_email, assessment_id, criterion_id, title, description, timeframe, outreach_template) values (${id}, ${task.userEmail}, ${task.assessmentId}, ${task.criterionId}, ${task.title}, ${task.description}, ${task.timeframe}, ${task.outreachTemplate ?? null})`;
   return id;
+}
+
+export async function markPolicyItemSeen(email: string, itemId: string): Promise<void> {
+  await ensureSchema();
+  const s = db();
+  await s`insert into seen_policy_items (user_email, item_id) values (${email}, ${itemId}) on conflict do nothing`;
+}
+
+export async function getSeenPolicyItemIds(email: string): Promise<Set<string>> {
+  await ensureSchema();
+  const s = db();
+  const rows = await s`select item_id from seen_policy_items where user_email = ${email}`;
+  return new Set(rows.map(r => r.item_id as string));
+}
+
+export async function getUserRelevantDomains(email: string): Promise<{domain: string | null, visaIds: string[]}> {
+  await ensureSchema();
+  const s = db();
+  const profiles = await s`select domain from profiles where user_email = ${email}`;
+  const domain = profiles.length > 0 ? (profiles[0].domain as string) : null;
+  
+  const assessments = await s`select distinct visa_id from assessments where user_email = ${email}`;
+  const visaIds = assessments.map(r => r.visa_id as string);
+  
+  return { domain, visaIds };
 }
